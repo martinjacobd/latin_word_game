@@ -5,3 +5,10 @@ version = 3
 [[package]]
 name = "latin_game"
 version = "0.1.0"
+dependencies = [
+ "synthetic_language",
+]
+
+[[package]]
+name = "synthetic_language"
+version = "0.1.0"

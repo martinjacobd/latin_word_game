@@ -1,14 +1,9 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+pub trait InflectionalCategory { }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub trait InflectionalCategorySet { }
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+pub trait Inflection {
+    type CategorySet: InflectionalCategorySet;
+
+    fn inflect(self, root: &str, categories: Self::CategorySet) -> String;
 }
