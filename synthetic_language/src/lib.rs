@@ -5,7 +5,8 @@ pub trait InflectionalCategory {
 }
 
 pub trait InflectionalCategorySet {
-    fn index(self) -> usize;
+    type IndexType;
+    fn index(self) -> Self::IndexType;
 }
 
 pub trait Inflection<'a> {
@@ -15,12 +16,12 @@ pub trait Inflection<'a> {
 }
 
 pub trait SuffixInflection<'a> {
-    type CategorySet: SuffixInflection;
+    type CategorySet: InflectionalCategorySet;
 
     fn suffix (self, categories: Self::CategorySet) -> Option<&'a str>;
 }
 
-impl<'a, T> Inflection for T where T: SuffixInflection {
+impl<'a, T> Inflection<'a> for T where T: SuffixInflection<'a> {
     type CategorySet = T::CategorySet;
 
     fn inflect(self, root: &'a str, categories: T::CategorySet) -> Option<String> {

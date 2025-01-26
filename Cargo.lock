@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "category-derive"
+name = "category_derive"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
@@ -51,7 +51,7 @@ dependencies = [
 name = "synthetic_language"
 version = "0.1.0"
 dependencies = [
- "category-derive",
+ "category_derive",
 ]
 
 [[package]]

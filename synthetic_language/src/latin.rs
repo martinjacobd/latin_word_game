@@ -1,35 +1,31 @@
-use super::{InflectionalCategory};
+use super::{InflectionalCategory, InflectionalCategorySet, SuffixInflection};
+use category_derive::{suffix_inflection_over_categories, InflectionalCategory, InflectionalCategorySet, SuffixInflection};
 
 // Nouns and Adjectives
-enum Gender {
-    Masculine,
-    Feminine,
-    Common,
-    Neuter,
-}
 
-enum Case {
-    Nominative,
-    Genitive,
-    Dative,
-    Accusative,
-    Ablative,
-    Vocative,
-    Locative,
-}
+suffix_inflection_over_categories! {
+    NominalDeclension
+    NominalCategories
 
-enum Number {
-    Singular,
-    Plural,
-}
+    pub enum Gender {
+        Masculine,
+        Feminine,
+        Common,
+        Neuter,
+    }
 
-struct NominalCategories {
-    gender: Gender,
-    case: Case,
-    number: Number,
-}
+    pub enum Case {
+        Nominative,
+        Genitive,
+        Dative,
+        Accusative,
+        Ablative,
+        Vocative,
+        Locative,
+    }
 
-struct NounDeclension<'a> {
-    name: &'a str,
-    suffixes: [&'a str; 42]
+    pub enum Number {
+        Singular,
+        Plural,
+    }
 }
