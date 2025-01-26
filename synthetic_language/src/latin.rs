@@ -29,3 +29,27 @@ suffix_inflection_over_categories! {
         Plural,
     }
 }
+
+suffix_inflection_over_categories! {
+    VerbConjugation
+    VerbCategories
+
+    pub enum Person {
+        First,
+        Second,
+        Third,
+    }
+
+    pub enum Voice {
+        Active,
+        Passive,
+    }
+
+    pub enum Mood {
+        Indicative,
+        Subjunctive,
+        Imperative,
+        Participle,
+    }
+}
+
