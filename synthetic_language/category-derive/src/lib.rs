@@ -4,6 +4,8 @@ use syn::{parse_macro_input, ItemEnum, ItemStruct, Ident};
 use syn::parse::{Parse, ParseStream};
 
 #[proc_macro_derive(InflectionalCategory)]
+/// Derive an `InflectionalCategory` in the straightforward case that it is an `ItemEnum` of
+/// several variants.
 pub fn derive_inflectional_category(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as ItemEnum);
     let name = &input.ident;
@@ -27,10 +29,14 @@ pub fn derive_inflectional_category(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_derive(InflectionalCategorySet)]
+/// Derive an `InflectionalCategorySet` in the straightforward case that it is an `ItemStruct` of
+/// several `InflectionalCategory`s.
+///
+/// Only use this if for some reason you cannot use `suffix_inflection_over_categories!`.
+/// `suffix_inflection_over_categories` will implement the index of `InflectionalCategorySet`
+/// as a single `usize`. This will implement it as a tuple of `usize`s for use with a later
+/// `derive_suffix_inflection`.
 pub fn derive_inflectional_category_set(input: TokenStream) -> TokenStream {
-    /// Only use this if for some reason you cannot use `suffix_inflection_over_categories!`.
-    /// `suffix_inflection_over_categories` will implement the index of `InflectionalCategorySet`
-    /// as a single `usize`. This will implement it as a tuple of `usize`s.
     let input = parse_macro_input!(input as ItemStruct);
     let name = &input.ident;
     let fields = input.fields;
@@ -50,10 +56,14 @@ pub fn derive_inflectional_category_set(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_derive(SuffixInflection, attributes(suffix_inflection_over, suffix_inflection_categories))]
+/// Derive a `SuffixInflection` in the straightforward case that it has a `suffixes` member that is
+/// a multidimensional array indexed by a tuple type generated from a derivation of
+/// `InflectionalCategorySet`.
+///
+/// Only use this if for some reason you cannot use `suffix_inflection_over_categories!`.
+/// `suffix_inflection_over_categories` will implement the suffixes of `SuffixInflection` as a
+/// single, linear array. This will implement it as a multidimensional array.
 pub fn derive_suffix_inflection(input: TokenStream) -> TokenStream {
-    /// Only use this if for some reason you cannot use `suffix_inflection_over_categories!`.
-    /// `suffix_inflection_over_categories` will implement the suffixes of `SuffixInflection` as a
-    /// single, linear array. This will implement it as a multidimensional array.
     let input = parse_macro_input!(input as ItemStruct);
     let name = &input.ident;
 
@@ -117,6 +127,28 @@ impl Parse for SuffixInflectionOverCategoriesInput {
     }
 }
 #[proc_macro]
+/// Derive an `InflectionalCategorySet` and `SuffixInflection` for several `InflectionalCategory`s
+/// of a type acceptable to `derive_inflectional_category`. Usage:
+/// ```
+///  suffix_inflection_over_categories! {
+///     SuffixInflectionName
+///     InflectionalCategorySetName
+///
+///     pub enum CategoryOne {
+///         CategoryOneVariantOne,
+///         CategoryOneVariantTwo,
+///         /* ... */
+///     }
+///
+///     pub enum CategoryTwo {
+///         CategoryTwoVariantOne,
+///         CategoryTwoVariantTwo,
+///         /* ... */
+///     }
+///
+///     /* ... */
+///  }
+/// ```
 pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as SuffixInflectionOverCategoriesInput);
 
@@ -148,6 +180,7 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
             #categories
         )*
 
+        #[derive(PartialEq)]
         pub struct #category_set_name (#(#categories_idents),*);
 
         impl InflectionalCategorySet for #category_set_name {
