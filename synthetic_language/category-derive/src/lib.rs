@@ -232,18 +232,18 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
 
         impl<'a> ::std::fmt::Display for #suffix_inflection_struct_name<'a> {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                write!(f, "{}\n====\n", self.name);
+                write!(f, "{}\n====\n", self.name)?;
                 let categories_set = vec![#(#category_set_name #categories_tuples),*];
                 for categories in categories_set {
                     if let Some(suffix) = self.suffixes[categories.index()] {
                         write!(f,
                             concat!(#(#formats),* , "{:?}\n"),
                             #(format!("{:?}",categories.#indices)),* ,
-                            suffix);
+                            suffix)?;
                     }
                 }
 
-                write!(f, "\n====\n");
+                write!(f, "\n====\n")?;
 
                 Ok(())
             }
