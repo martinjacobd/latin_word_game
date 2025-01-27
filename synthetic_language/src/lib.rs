@@ -5,14 +5,18 @@ use category_derive::*;
 /// An `InflectionalCategory` is a salient category used when inflecting a word, such as
 /// gender, number, case, tense, aspect, mood, etc.
 pub trait InflectionalCategory: PartialEq {
-    fn index(self) -> usize;
+    fn index(&self) -> usize;
+
+    fn iter_through_variants() -> impl Iterator<Item = Self>;
 }
 
 /// An `InflectionalCategorySet` is the set of salient categories which together _determine_ the
 /// inflection of a word, such as gender, number, and case for a Latin adjective.
 pub trait InflectionalCategorySet: PartialEq {
     type IndexType;
-    fn index(self) -> Self::IndexType;
+    fn index(&self) -> Self::IndexType;
+
+    fn iter_through_variants() -> impl Iterator<Item = Self>;
 }
 
 /// An `Inflection` is a set of transformations on a root which, when given the relevant
@@ -20,7 +24,7 @@ pub trait InflectionalCategorySet: PartialEq {
 pub trait Inflection<'a> {
     type CategorySet: InflectionalCategorySet;
 
-    fn inflect(self, root: &'a str, categories: Self::CategorySet) -> Option<String>;
+    fn inflect(&self, root: &'a str, categories: Self::CategorySet) -> Option<String>;
 }
 
 /// A `SuffixInflection` is a special case of an `Inflection` in which roots are merely given
@@ -30,13 +34,13 @@ pub trait Inflection<'a> {
 pub trait SuffixInflection<'a> {
     type CategorySet: InflectionalCategorySet;
 
-    fn suffix (self, categories: Self::CategorySet) -> Option<&'a str>;
+    fn suffix (&self, categories: Self::CategorySet) -> Option<&'a str>;
 }
 
 impl<'a, T> Inflection<'a> for T where T: SuffixInflection<'a> {
     type CategorySet = T::CategorySet;
 
-    fn inflect(self, root: &'a str, categories: T::CategorySet) -> Option<String> {
+    fn inflect(&self, root: &'a str, categories: T::CategorySet) -> Option<String> {
         let suffix = self.suffix(categories)?;
         let mut result = String::with_capacity(root.len() + suffix.len());
 
@@ -57,11 +61,11 @@ pub struct Word<'a, Infl: Inflection<'a>> {
 }
 
 impl<'a, Infl: Inflection<'a>> Word<'a, Infl> {
-    pub fn inflect(self, categories: Infl::CategorySet) -> Option<String> {
+    pub fn inflect(&self, categories: Infl::CategorySet) -> Option<String> {
         if self.regular {
             self.inflection.inflect(self.root, categories)
         } else {
-            for irregular_form in self.irregular_forms {
+            for irregular_form in &self.irregular_forms {
                 if irregular_form.0 == categories {
                     return Some(irregular_form.1?.to_string())
                 }

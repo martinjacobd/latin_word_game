@@ -1,8 +1,8 @@
 use proc_macro::{self, TokenStream};
-use quote::{quote};
+use quote::{quote, format_ident};
 use syn::{parse_macro_input, ItemEnum, ItemStruct, Ident};
 use syn::parse::{Parse, ParseStream};
-use iter_tools;
+use iter_tools::Itertools;
 
 #[proc_macro_derive(InflectionalCategory)]
 /// Derive an `InflectionalCategory` in the straightforward case that it is an `ItemEnum` of
@@ -13,15 +13,21 @@ pub fn derive_inflectional_category(input: TokenStream) -> TokenStream {
     let variants = input.variants;
     let variant_vec = variants
         .iter()
-        .map(|v| &v.ident);
+        .map(|v| &v.ident)
+        .collect::<Vec<_>>();
     let i = 0usize..variants.len();
 
     let gen = quote! {
         impl InflectionalCategory for #name {
-            fn index(self) -> usize {
+            fn index(&self) -> usize {
                 match self {
                     #(#name::#variant_vec => #i),*
                 }
+            }
+
+            fn iter_through_variants() -> impl Iterator<Item = #name> {
+                let mut ret = vec![#(#name::#variant_vec),*];
+                ret.into_iter()
             }
         }
     };
@@ -47,7 +53,7 @@ pub fn derive_inflectional_category_set(input: TokenStream) -> TokenStream {
     let gen = quote! {
         impl InflectionalCategorySet for #name {
             type IndexType = (#(#index_type),*);
-            fn index(self) -> Self::IndexType {
+            fn index(&self) -> Self::IndexType {
                 (#(self.#field_vec.index()),*)
             }
         }
@@ -95,7 +101,7 @@ pub fn derive_suffix_inflection(input: TokenStream) -> TokenStream {
         impl<'a> SuffixInflection<'a> for #name<'a> {
             type CategorySet = #underlying_type;
 
-            fn suffix(self, categories: Self::CategorySet) -> Option<&'a str> {
+            fn suffix(&self, categories: Self::CategorySet) -> Option<&'a str> {
                 let index = categories.index();
 
                 self.suffixes #([index.#n_categories])*
@@ -184,17 +190,25 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
         .map(|c| c.variants.iter())
         .map(|v| v.map(|v| &v.ident).collect::<Vec<_>>())
         .collect::<Vec<_>>();
-    let categories_tuples =
-        iter_tools::Itertools::multi_cartesian_product(categories_variants.into_iter())
-        .map(|v| { quote! { (#(#categories_idents::#v),*) } });
 
-    let indices = (0..categories.len())
-        .map(syn::Index::from)
+    let all_categories_variants_vecs = categories_variants
         .into_iter()
+        .multi_cartesian_product();
+
+    let all_categories_variants_tuples = all_categories_variants_vecs
+        .map(|v| quote! {(#(#categories_idents :: #v),*)})
         .collect::<Vec<_>>();
-    let formats = (0..categories.len())
-        .map(|_| quote! { "{:20} " })
-        .into_iter()
+
+    let previous_vars = (0..input.categories.len())
+        .map(|i| format_ident! {"previous_{}", i})
+        .collect::<Vec<_>>();
+
+    let current_vars = (0..input.categories.len())
+        .map(|i| format_ident! {"current_{}", i})
+        .collect::<Vec<_>>();
+
+    let format_strings = (0..input.categories.len())
+        .map(|_i| quote! { "{:12} " })
         .collect::<Vec<_>>();
 
     let gen = quote! {
@@ -209,8 +223,13 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
         impl InflectionalCategorySet for #category_set_name {
             type IndexType = usize;
 
-            fn index(self) -> Self::IndexType {
+            fn index(&self) -> Self::IndexType {
                 0 #(+ self.#i.index() * #categories_strides)*
+            }
+
+            fn iter_through_variants() -> impl Iterator<Item = #category_set_name> {
+                let variants = vec![#(#category_set_name #all_categories_variants_tuples),*];
+                variants.into_iter()
             }
         }
 
@@ -223,7 +242,7 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
         impl<'a> SuffixInflection<'a> for #suffix_inflection_struct_name<'a> {
             type CategorySet = #category_set_name;
 
-            fn suffix(self, categories: Self::CategorySet) -> Option<&'a str> {
+            fn suffix(&self, categories: Self::CategorySet) -> Option<&'a str> {
                 let index = categories.index();
 
                 self.suffixes[index]
@@ -232,18 +251,33 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
 
         impl<'a> ::std::fmt::Display for #suffix_inflection_struct_name<'a> {
             fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                write!(f, "{}\n====\n", self.name)?;
-                let categories_set = vec![#(#category_set_name #categories_tuples),*];
-                for categories in categories_set {
-                    if let Some(suffix) = self.suffixes[categories.index()] {
-                        write!(f,
-                            concat!(#(#formats),* , "{:?}\n"),
-                            #(format!("{:?}",categories.#indices)),* ,
-                            suffix)?;
-                    }
-                }
+                write!(f, "{}\n======\n", self.name)?;
 
-                write!(f, "\n====\n")?;
+                let variants = #category_set_name::iter_through_variants();
+
+                let mut previous_variant: Option<#category_set_name> = None;
+                for variant in variants {
+                    if let Some(suffix) = self.suffix(variant) {
+                        let #category_set_name (#( #current_vars ),*) = variant;
+                        if previous_variant.is_some() {
+                            let #category_set_name (#( #previous_vars ),*) = previous_variant.unwrap();
+                            write!(
+                                f,
+                                concat![#( #format_strings ),* , "{}\n"],
+                                #( if #current_vars != #previous_vars { format!("{:?}", #current_vars) } else { "".to_string() } ),* ,
+                                suffix
+                            )?;
+                        } else {
+                            write!(
+                                f,
+                                concat![#( #format_strings ),* , "{}\n"],
+                                #( format!["{:?}", #current_vars] ),* ,
+                                suffix
+                            )?;
+                        }
+                    }
+                    previous_variant = Some(variant);
+                }
 
                 Ok(())
             }
