@@ -129,7 +129,7 @@ impl Parse for SuffixInflectionOverCategoriesInput {
 #[proc_macro]
 /// Derive an `InflectionalCategorySet` and `SuffixInflection` for several `InflectionalCategory`s
 /// of a type acceptable to `derive_inflectional_category`. Usage:
-/// ```
+/// ```compile_fail
 ///  suffix_inflection_over_categories! {
 ///     SuffixInflectionName
 ///     InflectionalCategorySetName
@@ -161,18 +161,18 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
         .categories
         .iter()
         .map(|c| &c.ident);
-    let categories_sizes = input
-        .categories
-        .iter()
-        .map(|c| c.variants.len());
-    let mut categories_strides = input
+    let mut categories_sizes: Vec<usize> = input
         .categories
         .iter()
         .map(|c| c.variants.len())
-        .collect::<Vec<_>>();
+        .collect();
+    categories_sizes.reverse();
+    let mut categories_strides: Vec<usize> = categories_sizes
+        .iter()
+        .fold(vec![1], |mut acc, &s| {acc.push(s * acc.last().unwrap()); acc});
+    let total_n_elements = categories_strides.pop().unwrap();
+    categories_strides.reverse();
     let i = (0..input.categories.len()).map(syn::Index::from);
-    categories_strides.remove(0);
-    categories_strides.push(1);
 
     let gen = quote! {
         #(
@@ -193,7 +193,7 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
 
         pub struct #suffix_inflection_struct_name<'a> {
             name: &'a str,
-            suffixes: [Option<&'a str>; 1 #(* #categories_sizes)*],
+            suffixes: [Option<&'a str>; #total_n_elements],
         }
 
         impl<'a> SuffixInflection<'a> for #suffix_inflection_struct_name<'a> {
@@ -207,5 +207,47 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
         }
     };
 
+    gen.into()
+}
+
+struct Suffixes(Vec<Option<String>>);
+
+impl Parse for Suffixes {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut res = Vec::new();
+
+        while !input.is_empty() {
+            if let Ok(s) = input.parse::<syn::LitStr>() {
+                res.push(Some(s.value()));
+            } else if input.parse::<syn::token::Comma>().is_ok() {
+                continue;
+            } else if let Ok(ident) = input.parse::<Ident>() {
+                if ident == "None" || ident == "N" {
+                    res.push(None);
+                } else {
+                    res.push(Some(ident.to_string()));
+                }
+            }
+        }
+
+        Ok(Suffixes(res))
+    }
+}
+#[proc_macro]
+pub fn suffixes(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as Suffixes);
+    let suffixes = input.0;
+    let suffixes = suffixes
+        .into_iter()
+        .map(|s| {
+            if let Some(s) = s {
+                quote! { Some(#s) }
+            } else {
+                quote! { None }
+            }
+        });
+    let gen = quote! {
+        [#(#suffixes),*]
+    };
     gen.into()
 }

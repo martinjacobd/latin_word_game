@@ -1,5 +1,7 @@
 mod latin;
 
+use category_derive::*;
+
 /// An `InflectionalCategory` is a salient category used when inflecting a word, such as
 /// gender, number, case, tense, aspect, mood, etc.
 pub trait InflectionalCategory: PartialEq {
