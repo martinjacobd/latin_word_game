@@ -1,4 +1,4 @@
-mod latin;
+pub mod latin;
 
 use category_derive::*;
 

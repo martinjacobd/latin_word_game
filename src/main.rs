@@ -1,5 +1,5 @@
-use synthetic_language;
+use synthetic_language::latin::declension::*;
 
 fn main() {
-    println!("Hello, world!");
+    println!("{}", FIRST_DECLENSION);
 }

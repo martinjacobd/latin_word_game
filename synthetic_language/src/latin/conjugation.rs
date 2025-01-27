@@ -11,6 +11,11 @@ suffix_inflection_over_categories! {
         Third,
     }
 
+    pub enum Number {
+        Singular,
+        Plural,
+    }
+
     pub enum Voice {
         Active,
         Passive,

@@ -2,6 +2,7 @@ use proc_macro::{self, TokenStream};
 use quote::{quote};
 use syn::{parse_macro_input, ItemEnum, ItemStruct, Ident};
 use syn::parse::{Parse, ParseStream};
+use iter_tools;
 
 #[proc_macro_derive(InflectionalCategory)]
 /// Derive an `InflectionalCategory` in the straightforward case that it is an `ItemEnum` of
@@ -126,6 +127,7 @@ impl Parse for SuffixInflectionOverCategoriesInput {
         Ok(res)
     }
 }
+
 #[proc_macro]
 /// Derive an `InflectionalCategorySet` and `SuffixInflection` for several `InflectionalCategory`s
 /// of a type acceptable to `derive_inflectional_category`. Usage:
@@ -156,11 +158,13 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
     let suffix_inflection_struct_name = &input.suffix_inflection_struct_name;
     let categories = input
         .categories
-        .iter();
+        .iter()
+        .collect::<Vec<_>>();
     let categories_idents = input
         .categories
         .iter()
-        .map(|c| &c.ident);
+        .map(|c| &c.ident)
+        .collect::<Vec<_>>();
     let mut categories_sizes: Vec<usize> = input
         .categories
         .iter()
@@ -174,13 +178,32 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
     categories_strides.reverse();
     let i = (0..input.categories.len()).map(syn::Index::from);
 
+    let categories_variants = input
+        .categories
+        .iter()
+        .map(|c| c.variants.iter())
+        .map(|v| v.map(|v| &v.ident).collect::<Vec<_>>())
+        .collect::<Vec<_>>();
+    let categories_tuples =
+        iter_tools::Itertools::multi_cartesian_product(categories_variants.into_iter())
+        .map(|v| { quote! { (#(#categories_idents::#v),*) } });
+
+    let indices = (0..categories.len())
+        .map(syn::Index::from)
+        .into_iter()
+        .collect::<Vec<_>>();
+    let formats = (0..categories.len())
+        .map(|_| quote! { "{:20} " })
+        .into_iter()
+        .collect::<Vec<_>>();
+
     let gen = quote! {
         #(
-            #[derive(PartialEq,InflectionalCategory)]
+            #[derive(Clone,Copy,Debug,PartialEq,InflectionalCategory)]
             #categories
         )*
 
-        #[derive(PartialEq)]
+        #[derive(Clone,Copy,Debug,PartialEq)]
         pub struct #category_set_name (#(#categories_idents),*);
 
         impl InflectionalCategorySet for #category_set_name {
@@ -191,6 +214,7 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
             }
         }
 
+        #[derive(Debug)]
         pub struct #suffix_inflection_struct_name<'a> {
             name: &'a str,
             suffixes: [Option<&'a str>; #total_n_elements],
@@ -203,6 +227,26 @@ pub fn suffix_inflection_over_categories(input: TokenStream) -> TokenStream {
                 let index = categories.index();
 
                 self.suffixes[index]
+            }
+        }
+
+        impl<'a> ::std::fmt::Display for #suffix_inflection_struct_name<'a> {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                write!(f, "{}\n====\n", self.name);
+                write!(f, concat!(#(#formats),* , "{:?}\n"), #(self.#indices),* );
+                let categories_set = vec![#(#category_set_name #categories_tuples),*];
+                for categories in categories_set {
+                    if let Some(suffix) = self.suffixes[categories.index()] {
+                        write!(f,
+                            concat!(#(#formats),* , "{:?}\n"),
+                            #(format!("{:?}",categories.#indices)),* ,
+                            suffix);
+                    }
+                }
+
+                write!(f, "\n====\n");
+
+                Ok(())
             }
         }
     };
@@ -234,6 +278,16 @@ impl Parse for Suffixes {
     }
 }
 #[proc_macro]
+/// This will generate a vector suffixes of the type Option<&'a str> with less line noise in the
+/// input than normal.
+/// Example:
+/// ```no_compile
+/// const suffixes: [Option<&'static str>; 6] = suffixes! [
+///     "a" "ae" ae "am" a N
+/// ];
+/// ```
+/// N or None represents a None. All other identifiers are turned into strings, as in the second
+/// ae above. You may also use string literals (probably the preferable route).
 pub fn suffixes(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as Suffixes);
     let suffixes = input.0;
